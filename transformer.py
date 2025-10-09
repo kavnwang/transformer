@@ -57,7 +57,6 @@ class Attention(nn.Module):
         self.o_proj = nn.Parameter(
             torch.zeros(key_dim,hidden_dim)
         )
-    # one head at first
     def forward(self,x: torch.Tensor) -> torch.Tensor: 
         h = x  # b s h
         q = torch.einsum("bsh,hk->bsk", x, self.qkv[:, :self.key_dim])
@@ -67,7 +66,7 @@ class Attention(nn.Module):
         S = h.size(1)
         attention_mask = torch.tril(
             torch.ones(S, S, dtype=torch.bool, device=x.device)
-        ).unsqueeze(0)  # 1 s s -> broadcast over batch
+        ).unsqueeze(0)
         attention_scores = attention_scores.masked_fill(~attention_mask, float("-inf"))
         softmax_scores = torch.softmax(attention_scores, dim=-1)
         x = torch.einsum("bst,btk->bsk", softmax_scores, v)

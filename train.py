@@ -16,7 +16,6 @@ device = torch.device("mps") if torch.backends.mps.is_available() else torch.dev
 tokenizer = AutoTokenizer.from_pretrained("fla-hub/gla-1.3B-100B", trust_remote_code=True)
 tokenizer.pad_token_id = job_config["pad_token_id"]
 
-
 model = Transformer(**model_config).to(device)
 
 print(model)
@@ -36,7 +35,7 @@ else:
 def tokenize(batch):
     return tokenizer(batch["text"], max_length=job_config["sequence_length"], truncation=True)
 
-tokenized_dataset = dataset.map(tokenize, batched=True, remove_columns=dataset.column_names)#remove_columns=dataset.column_names
+tokenized_dataset = dataset.map(tokenize, batched=True, remove_columns=dataset.column_names)
 collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 train_dataloader = DataLoader(tokenized_dataset, batch_size=job_config["batch_size"], collate_fn=collator)
 
@@ -44,8 +43,8 @@ def train_loop(dataloader, model, loss_fn, optimizer):
     model.train()
 
     for batch, sample in enumerate(itertools.islice(dataloader, job_config["training_steps"])):
-        x = sample["input_ids"][:, :-1] #b s[:-1]
-        y = sample["input_ids"][:, 1:] # b s[1:]
+        x = sample["input_ids"][:, :-1]
+        y = sample["input_ids"][:, 1:]
         x = x.to(device)
         y = y.to(device)
         pred = model(x)
@@ -54,7 +53,7 @@ def train_loop(dataloader, model, loss_fn, optimizer):
         loss.backward()
         optimizer.step()
         if batch % 1 == 0:
-            loss, current = loss.item(), (batch + 1) * len(sample["input_ids"])
+            loss, current = loss.item(), batch + 1
             print(f"loss: {loss:>7f}  [{current:>5d}/{job_config['training_steps']:>5d}]")
 
 loss_fn = nn.CrossEntropyLoss(ignore_index=job_config["pad_token_id"])
