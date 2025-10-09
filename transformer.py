@@ -52,10 +52,10 @@ class Attention(nn.Module):
         self.eps = eps
         self.RMSNorm = RMSNorm(eps)
         self.qkv = nn.Parameter(
-            torch.empty(hidden_dim, key_dim*3)
+            torch.zeros(hidden_dim, key_dim*3)
         )
         self.o_proj = nn.Parameter(
-            torch.empty(key_dim,hidden_dim)
+            torch.zeros(key_dim,hidden_dim)
         )
     # one head at first
     def forward(self,x: torch.Tensor) -> torch.Tensor: 

@@ -1,5 +1,5 @@
 {
-    "num_layers": 1,
+    "num_layers": 12,
     "hidden_dim": 512,
     "vocab_size": 32000,
     "key_dim": 64,
