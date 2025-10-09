@@ -146,4 +146,3 @@ class Transformer(nn.Module):
         x = self.model(x)
         x = self.unembedding(x)
         return x
-
