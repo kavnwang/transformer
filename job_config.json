@@ -2,7 +2,7 @@
     "training_steps": 20000,
     "batch_size": 8,
     "sequence_length": 64,
-    "lr": 3e-4,
+    "lr": 1e-4,
     "pad_token_id": 1,
     "dataset": "HuggingFaceFW/fineweb-edu",
     "dataset_name": "sample-10BT",
