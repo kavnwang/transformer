@@ -2,8 +2,11 @@
     "num_layers": 12,
     "hidden_dim": 512,
     "vocab_size": 32000,
-    "key_dim": 64,
-    "num_heads": 8,
-    "intermediate_dim": 1024,
-    "eps": 1e-6
+    "key_dim": 256,
+    "num_heads": 16,
+    "intermediate_dim": 4096,
+    "eps": 1e-5,
+    "num_experts": 8,
+    "num_selected": 2,
+    "max_length": 1024
 }

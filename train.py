@@ -1,13 +1,12 @@
 import torch
 import torch.nn as nn
-from transformer import Transformer
+from moe_transformer import Transformer
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForLanguageModeling
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 import itertools
 import json
 import os
-from datasets import load_from_disk
 
 model_config = json.load(open("model_config.json"))
 job_config = json.load(open("job_config.json"))
@@ -20,7 +19,7 @@ model = Transformer(**model_config).to(device)
 
 print(model)
 
-local_dataset_path = "fineweb-edu"
+local_dataset_path = "fineweb-edu-toy"
 
 if os.path.exists(local_dataset_path) and os.path.isdir(local_dataset_path):
     dataset = load_from_disk(local_dataset_path)
@@ -43,18 +42,19 @@ def train_loop(dataloader, model, loss_fn, optimizer):
     model.train()
 
     for batch, sample in enumerate(itertools.islice(dataloader, job_config["training_steps"])):
-        x = sample["input_ids"][:, :-1]
-        y = sample["input_ids"][:, 1:]
-        x = x.to(device)
-        y = y.to(device)
-        pred = model(x)
-        loss = loss_fn(pred.transpose(1, 2), y)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        if batch % 1 == 0:
-            loss, current = loss.item(), batch + 1
-            print(f"loss: {loss:>7f}  [{current:>5d}/{job_config['training_steps']:>5d}]")
+        with torch.autograd.set_detect_anomaly(True):
+            x = sample["input_ids"][:, :-1]
+            y = sample["input_ids"][:, 1:]
+            x = x.to(device)
+            y = y.to(device)
+            pred = model(x)
+            loss = loss_fn(pred.transpose(1, 2), y)
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            if batch % 1 == 0:
+                print(f"loss: {loss.item():>7f}  [{batch + 1:>5d}/{job_config['training_steps']:>5d}]")
 
 loss_fn = nn.CrossEntropyLoss(ignore_index=job_config["pad_token_id"])
 optimizer = torch.optim.Adam(model.parameters(), lr=job_config["lr"])
