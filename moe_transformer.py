@@ -51,6 +51,4 @@ class Transformer(nn.Module):
         )
         x = self.model(x)
         x = self.unembedding(x)
-        print("unembedding", torch.max(abs(x)), torch.min(abs(x)))
-
         return x

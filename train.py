@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from moe_transformer import Transformer
 from torch.utils.data import DataLoader
-from transformers import AutoTokenizer, DataCollatorForLanguageModeling
+from transformers import AutoTokenizer, DataCollatorForLanguageModeling, get_linear_schedule_with_warmup
 from datasets import load_dataset, load_from_disk
 import itertools
 import json
@@ -16,8 +16,6 @@ tokenizer = AutoTokenizer.from_pretrained("fla-hub/gla-1.3B-100B", trust_remote_
 tokenizer.pad_token_id = job_config["pad_token_id"]
 
 model = Transformer(**model_config).to(device)
-
-print(model)
 
 local_dataset_path = "fineweb-edu-toy"
 
@@ -38,24 +36,35 @@ tokenized_dataset = dataset.map(tokenize, batched=True, remove_columns=dataset.c
 collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 train_dataloader = DataLoader(tokenized_dataset, batch_size=job_config["batch_size"], collate_fn=collator)
 
+
+
+loss_fn = nn.CrossEntropyLoss(ignore_index=job_config["pad_token_id"], label_smoothing=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), betas=(0.9,0.95), lr=job_config["lr"])
+
+scheduler = get_linear_schedule_with_warmup(
+    optimizer,
+    num_warmup_steps=job_config["warmup_steps"],
+    num_training_steps=job_config["total_training_steps"]-job_config["warmup_steps"],
+)
+
+
 def train_loop(dataloader, model, loss_fn, optimizer):
     model.train()
 
-    for batch, sample in enumerate(itertools.islice(dataloader, job_config["training_steps"])):
-        with torch.autograd.set_detect_anomaly(True):
+    for batch, sample in enumerate(itertools.islice(dataloader, job_config["total_training_steps"])):
+        #with torch.autograd.set_detect_anomaly(True):
             x = sample["input_ids"][:, :-1]
             y = sample["input_ids"][:, 1:]
             x = x.to(device)
             y = y.to(device)
             pred = model(x)
             loss = loss_fn(pred.transpose(1, 2), y)
-            optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
             if batch % 1 == 0:
-                print(f"loss: {loss.item():>7f}  [{batch + 1:>5d}/{job_config['training_steps']:>5d}]")
+                print(f"loss: {loss.item():>7f} [{batch + 1:>5d}/{job_config['total_training_steps']:>5d}]") 
 
-loss_fn = nn.CrossEntropyLoss(ignore_index=job_config["pad_token_id"])
-optimizer = torch.optim.Adam(model.parameters(), lr=job_config["lr"])
 train_loop(train_dataloader, model, loss_fn, optimizer)

@@ -2,10 +2,6 @@ import torch
 import torch.nn as nn
 import einops
 
-from layers.silu import SiLU
-from layers.layernorm import LayerNorm
-
-
 class MoESwiGLU(nn.Module):
     def __init__(self, hidden_dim: int, intermediate_dim: int, num_experts: int):
         super().__init__()
@@ -20,7 +16,7 @@ class MoESwiGLU(nn.Module):
         self.down_proj = nn.Parameter(
             nn.init.kaiming_uniform_(torch.empty(num_experts, intermediate_dim, hidden_dim))
         )
-        self.silu = SiLU()
+        self.silu = nn.SiLU()
         self.num_experts = num_experts
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -42,7 +38,7 @@ class MoE(nn.Module):
         hidden_dim: int,
         intermediate_dim: int,
         num_selected: int,
-        eps: float = 1e-6,
+        eps: float = 1e-5,
     ):
         super().__init__()
         self.num_experts = num_experts
@@ -51,7 +47,7 @@ class MoE(nn.Module):
         self.num_selected = num_selected
         self.router = nn.Linear(hidden_dim, num_experts, bias=False)  # inefficient
         self.mlp = MoESwiGLU(hidden_dim, intermediate_dim, num_experts)
-        self.layer_norm = LayerNorm(eps)
+        self.layer_norm = nn.LayerNorm(hidden_dim,eps)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # b s h
