@@ -2,3 +2,4 @@
 *.env
 fineweb-edu
 fineweb-edu-toy
+.venv/
