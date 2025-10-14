@@ -1,5 +1,5 @@
 {
-    "total_training_steps": 2000,
+    "total_training_steps": 20000,
     "warmup_steps": 500,
     "batch_size": 8,
     "sequence_length": 64,
@@ -9,6 +9,6 @@
     "dataset_name": "sample-10BT",
     "split": "train",
     "streaming": true,
-    "model_save_path": "./models/test2",
-    "save_interval": 10
+    "model_save_path": "./models/test",
+    "save_interval": 200
 }

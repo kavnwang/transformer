@@ -18,7 +18,7 @@ job_config = json.load(open("job_config.json"))
 device = (
     torch.device("mps")
     if torch.backends.mps.is_available()
-    else torch.device("cpu") if torch.cuda.is_available() else torch.device("cpu")
+    else torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 )
 print(f"Using device: {device}")
 tokenizer = AutoTokenizer.from_pretrained(
@@ -79,29 +79,27 @@ def train_loop(dataloader, model, loss_fn, optimizer):
     for batch, sample in enumerate(
         itertools.islice(dataloader, job_config["total_training_steps"])
     ):
-        with torch.autograd.set_detect_anomaly(True):
-            x = sample["input_ids"][:, :-1]
-            y = sample["input_ids"][:, 1:]
-            x = x.to(device)
-            y = y.to(device)
-            pred = model(x)
-            loss = loss_fn(pred.transpose(1, 2), y)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
-            if batch % 1 == 0:
-                print(
-                    f"loss: {loss.item():>7f} [{batch + 1:>5d}/{job_config['total_training_steps']:>5d}]"
-                )
-            if (batch + 1) % job_config["save_interval"] == 0:
-                torch.save(
-                    model.state_dict(),
-                    f"{job_config['model_save_path']}/model_checkpoint_step_{batch+1}.pth",
-                )
-                print(f"Model checkpoint saved at step {batch+1}")
+        x = sample["input_ids"][:, :-1]
+        y = sample["input_ids"][:, 1:]
+        x = x.to(device)
+        y = y.to(device)
+        pred = model(x)
+        loss = loss_fn(pred.transpose(1, 2), y)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        optimizer.step()
+        scheduler.step()
+        optimizer.zero_grad()
+        if batch % 1 == 0:
+            print(
+                f"loss: {loss.item():>7f} [{batch + 1:>5d}/{job_config['total_training_steps']:>5d}]"
+            )
+        if (batch + 1) % job_config["save_interval"] == 0:
+            torch.save(
+                model.state_dict(),
+                f"{job_config['model_save_path']}/model_checkpoint_step_{batch+1}.pth",
+            )
+            print(f"Model checkpoint saved at step {batch+1}")
 
 
 train_loop(train_dataloader, model, loss_fn, optimizer)
-

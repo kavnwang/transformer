@@ -20,7 +20,9 @@ tokenizer = AutoTokenizer.from_pretrained(
 )
 
 model = Transformer(**model_config).to(device)
-model.load_state_dict(torch.load("models/test2/model_checkpoint_step_120.pth", weights_only=True))
+model.load_state_dict(
+    torch.load("models/test/model_checkpoint_step_4300.pth", map_location=device, weights_only=True)
+)
 
 prompt = input("Enter your prompt: ")
 inputs = tokenizer(prompt, return_tensors="pt")["input_ids"].to(device)
