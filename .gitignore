@@ -2,4 +2,6 @@
 *.env
 fineweb-edu
 fineweb-edu-toy
+models/
 .venv/
+__pycache__

@@ -1,13 +1,10 @@
 import torch
 import torch.nn as nn
 
-from layers.linear import Linear
-from layers.positional_embedding import PositionalEmbedding
 from layers.swiglu import SwiGLU
 from layers.attention import Attention
 from layers.layernorm import LayerNorm
 from layers.moe import MoE
-from layers.positional_embedding import PositionalEmbedding
 
 
 class Transformer(nn.Module):

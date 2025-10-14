@@ -2,7 +2,11 @@ import torch
 import torch.nn as nn
 from moe_transformer import Transformer
 from torch.utils.data import DataLoader
-from transformers import AutoTokenizer, DataCollatorForLanguageModeling, get_linear_schedule_with_warmup
+from transformers import (
+    AutoTokenizer,
+    DataCollatorForLanguageModeling,
+    get_linear_schedule_with_warmup,
+)
 from datasets import load_dataset, load_from_disk
 import itertools
 import json
@@ -11,8 +15,15 @@ import os
 model_config = json.load(open("model_config.json"))
 job_config = json.load(open("job_config.json"))
 
-device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
-tokenizer = AutoTokenizer.from_pretrained("fla-hub/gla-1.3B-100B", trust_remote_code=True)
+device = (
+    torch.device("mps")
+    if torch.backends.mps.is_available()
+    else torch.device("cpu") if torch.cuda.is_available() else torch.device("cpu")
+)
+print(f"Using device: {device}")
+tokenizer = AutoTokenizer.from_pretrained(
+    "fla-hub/gla-1.3B-100B", trust_remote_code=True
+)
 tokenizer.pad_token_id = job_config["pad_token_id"]
 
 model = Transformer(**model_config).to(device)
@@ -29,30 +40,46 @@ else:
         streaming=job_config["streaming"],
     )
 
+
 def tokenize(batch):
-    return tokenizer(batch["text"], max_length=job_config["sequence_length"], truncation=True)
+    return tokenizer(
+        batch["text"], max_length=job_config["sequence_length"], truncation=True
+    )
 
-tokenized_dataset = dataset.map(tokenize, batched=True, remove_columns=dataset.column_names)
+
+tokenized_dataset = dataset.map(
+    tokenize, batched=True, remove_columns=dataset.column_names
+)
 collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
-train_dataloader = DataLoader(tokenized_dataset, batch_size=job_config["batch_size"], collate_fn=collator)
+train_dataloader = DataLoader(
+    tokenized_dataset, batch_size=job_config["batch_size"], collate_fn=collator
+)
 
 
-
-loss_fn = nn.CrossEntropyLoss(ignore_index=job_config["pad_token_id"], label_smoothing=1e-5)
-optimizer = torch.optim.Adam(model.parameters(), betas=(0.9,0.95), lr=job_config["lr"])
+loss_fn = nn.CrossEntropyLoss(
+    ignore_index=job_config["pad_token_id"], label_smoothing=1e-5
+)
+optimizer = torch.optim.Adam(model.parameters(), betas=(0.9, 0.95), lr=job_config["lr"])
 
 scheduler = get_linear_schedule_with_warmup(
     optimizer,
     num_warmup_steps=job_config["warmup_steps"],
-    num_training_steps=job_config["total_training_steps"]-job_config["warmup_steps"],
+    num_training_steps=job_config["total_training_steps"] - job_config["warmup_steps"],
 )
 
 
 def train_loop(dataloader, model, loss_fn, optimizer):
+    if os.path.exists(job_config["model_save_path"]):
+        # Clean up for testing purposes
+        os.system(f"rm -rf {job_config['model_save_path']}")
+    os.makedirs(job_config["model_save_path"], exist_ok=True)
+
     model.train()
 
-    for batch, sample in enumerate(itertools.islice(dataloader, job_config["total_training_steps"])):
-        #with torch.autograd.set_detect_anomaly(True):
+    for batch, sample in enumerate(
+        itertools.islice(dataloader, job_config["total_training_steps"])
+    ):
+        with torch.autograd.set_detect_anomaly(True):
             x = sample["input_ids"][:, :-1]
             y = sample["input_ids"][:, 1:]
             x = x.to(device)
@@ -65,6 +92,16 @@ def train_loop(dataloader, model, loss_fn, optimizer):
             scheduler.step()
             optimizer.zero_grad()
             if batch % 1 == 0:
-                print(f"loss: {loss.item():>7f} [{batch + 1:>5d}/{job_config['total_training_steps']:>5d}]") 
+                print(
+                    f"loss: {loss.item():>7f} [{batch + 1:>5d}/{job_config['total_training_steps']:>5d}]"
+                )
+            if (batch + 1) % job_config["save_interval"] == 0:
+                torch.save(
+                    model.state_dict(),
+                    f"{job_config['model_save_path']}/model_checkpoint_step_{batch+1}.pth",
+                )
+                print(f"Model checkpoint saved at step {batch+1}")
+
 
 train_loop(train_dataloader, model, loss_fn, optimizer)
+
