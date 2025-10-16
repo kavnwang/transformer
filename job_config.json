@@ -1,6 +1,5 @@
 {
-    "total_training_steps": 20000,
-    "warmup_steps": 500,
+    "total_training_steps": 25000,
     "batch_size": 8,
     "sequence_length": 64,
     "lr": 2e-4,
@@ -10,5 +9,5 @@
     "split": "train",
     "streaming": true,
     "model_save_path": "./models/test",
-    "save_interval": 200
+    "save_interval": 500
 }

@@ -1,16 +1,21 @@
-import torch
-import torch.nn as nn
-from moe_transformer import Transformer
-from torch.utils.data import DataLoader
-from transformers import (
-    AutoTokenizer,
-    DataCollatorForLanguageModeling,
-    get_linear_schedule_with_warmup,
-)
-from datasets import load_dataset, load_from_disk
 import itertools
 import json
 import os
+
+from datasets import load_dataset, load_from_disk
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from transformers import (
+    AutoTokenizer,
+    DataCollatorForLanguageModeling,
+)
+
+from moe_transformer import Transformer
+from utils.generator import generate
+from utils.checkpointing import save_checkpoint, load_checkpoint
+from utils.writers import StatsWriter
 
 model_config = json.load(open("model_config.json"))
 job_config = json.load(open("job_config.json"))
@@ -61,10 +66,10 @@ loss_fn = nn.CrossEntropyLoss(
 )
 optimizer = torch.optim.Adam(model.parameters(), betas=(0.9, 0.95), lr=job_config["lr"])
 
-scheduler = get_linear_schedule_with_warmup(
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer,
-    num_warmup_steps=job_config["warmup_steps"],
-    num_training_steps=job_config["total_training_steps"] - job_config["warmup_steps"],
+    T_max=2000,
+    eta_min=job_config["lr"] * 0.1,
 )
 
 
@@ -76,30 +81,41 @@ def train_loop(dataloader, model, loss_fn, optimizer):
 
     model.train()
 
-    for batch, sample in enumerate(
-        itertools.islice(dataloader, job_config["total_training_steps"])
-    ):
-        x = sample["input_ids"][:, :-1]
-        y = sample["input_ids"][:, 1:]
-        x = x.to(device)
-        y = y.to(device)
-        pred = model(x)
-        loss = loss_fn(pred.transpose(1, 2), y)
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
-        if batch % 1 == 0:
-            print(
-                f"loss: {loss.item():>7f} [{batch + 1:>5d}/{job_config['total_training_steps']:>5d}]"
+    with StatsWriter(
+        os.path.join(job_config["model_save_path"], "stats.csv"), ["step", "loss"]
+    ) as writer:
+        for batch, sample in (
+            bar := tqdm(
+                enumerate(
+                    itertools.islice(dataloader, job_config["total_training_steps"])
+                ),
+                total=job_config["total_training_steps"],
             )
-        if (batch + 1) % job_config["save_interval"] == 0:
-            torch.save(
-                model.state_dict(),
-                f"{job_config['model_save_path']}/model_checkpoint_step_{batch+1}.pth",
-            )
-            print(f"Model checkpoint saved at step {batch+1}")
+        ):
+            x = sample["input_ids"][:, :-1]
+            y = sample["input_ids"][:, 1:]
+            x = x.to(device)
+            y = y.to(device)
+            pred = model(x)
+            loss = loss_fn(pred.transpose(1, 2), y)
+            loss.backward()
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
+            bar.set_postfix_str(f"loss: {loss.item():>7f}")
+            writer.write({"step": batch, "loss": loss.item()})
+            if (batch + 1) % job_config["save_interval"] == 0:
+                save_checkpoint(
+                    model,
+                    optimizer,
+                    scheduler,
+                    step=batch,
+                    checkpoint_dir=job_config["model_save_path"],
+                )
+                bar.write(f"Model checkpoint saved at step {batch+1}")
+                sample_text = generate(model, "", device)
+                bar.write(f"Sample text at step {batch+1}: {sample_text}")
 
 
 train_loop(train_dataloader, model, loss_fn, optimizer)

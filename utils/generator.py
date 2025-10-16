@@ -1,0 +1,21 @@
+import torch
+from transformers import AutoTokenizer
+
+
+
+tokenizer = AutoTokenizer.from_pretrained(
+    "fla-hub/gla-1.3B-100B", trust_remote_code=True
+)
+
+def generate(model, prompt, device, max_length: int = 100, temperature: float = 1.0) -> str:
+    inputs = tokenizer(prompt, return_tensors="pt")["input_ids"].to(device)
+    with torch.no_grad():
+        for _ in range(max_length):
+            outputs = model(inputs)
+            next_token_logits = outputs[:, -1, :]
+            next_token_probs = torch.softmax(next_token_logits / temperature, dim=-1)
+            next_token = torch.multinomial(next_token_probs, num_samples=1)
+            inputs = torch.cat([inputs, next_token], dim=-1)
+            if next_token.item() == tokenizer.eos_token_id:
+                break
+    return tokenizer.decode(inputs[0])
