@@ -18,7 +18,6 @@ class Transformer(nn.Module):
         intermediate_dim: int,
         num_selected: int,
         num_experts: int,
-        max_length: int,
         eps: float = 1e-6,
     ):
 
@@ -28,7 +27,6 @@ class Transformer(nn.Module):
         self.intermediate_dim = intermediate_dim
         self.rms_norm = RMSNorm(hidden_dim,eps)
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
-        #self.positional_embedding = nn.Embedding(max_length, hidden_dim)
         self.unembedding = nn.Linear(hidden_dim, vocab_size, bias=False)
         self.num_selected = num_selected
         self.num_experts = num_experts
@@ -44,11 +42,6 @@ class Transformer(nn.Module):
 
     def forward(self, x: int) -> torch.Tensor:
         x = self.embedding(x)
-        '''
-        x = x + self.positional_embedding(
-            torch.arange(x.size(1), device=x.device)
-        )
-        '''
         x = self.model(x)
         x = self.unembedding(x)
         return x
