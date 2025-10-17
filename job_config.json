@@ -1,13 +1,13 @@
 {
     "total_training_steps": 20000,
     "batch_size": 8,
-    "sequence_length": 64,
-    "lr": 5e-5,
+    "sequence_length": 512,
+    "lr": 3e-4,
     "pad_token_id": 1,
     "dataset": "HuggingFaceFW/fineweb-edu",
     "dataset_name": "sample-10BT",
     "split": "train",
     "streaming": true,
     "model_save_path": "./models/test3",
-    "save_interval": 500
+    "save_interval": 5000
 }
