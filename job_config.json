@@ -8,6 +8,6 @@
     "dataset_name": "sample-10BT",
     "split": "train",
     "streaming": true,
-    "model_save_path": "./models/test2",
+    "model_save_path": "./models/test3",
     "save_interval": 500
 }

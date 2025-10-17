@@ -67,7 +67,7 @@ optimizer = torch.optim.Adam(model.parameters(), betas=(0.9, 0.95), lr=job_confi
 
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer,
-    T_max=2000,
+    T_max=5000,
     eta_min=job_config["lr"] * 0.1,
 )
 
