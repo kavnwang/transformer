@@ -73,10 +73,12 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
 
 
 def train_loop(dataloader, model, loss_fn, optimizer):
+    '''
     if os.path.exists(job_config["model_save_path"]):
         # Raise error if the directory exists
         print("Error: Model save path already exists.")
         return
+    '''
     os.makedirs(job_config["model_save_path"], exist_ok=True)
 
     model.train()

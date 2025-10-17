@@ -26,9 +26,9 @@ class Transformer(nn.Module):
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.intermediate_dim = intermediate_dim
-        self.RMSNorm = RMSNorm(hidden_dim,eps)
+        self.rms_norm = RMSNorm(hidden_dim,eps)
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
-        self.positional_embedding = nn.Embedding(max_length, hidden_dim)
+        #self.positional_embedding = nn.Embedding(max_length, hidden_dim)
         self.unembedding = nn.Linear(hidden_dim, vocab_size, bias=False)
         self.num_selected = num_selected
         self.num_experts = num_experts
@@ -43,9 +43,12 @@ class Transformer(nn.Module):
         self.model = nn.Sequential(*layers)
 
     def forward(self, x: int) -> torch.Tensor:
-        x = self.embedding(x) + self.positional_embedding(
+        x = self.embedding(x)
+        '''
+        x = x + self.positional_embedding(
             torch.arange(x.size(1), device=x.device)
         )
+        '''
         x = self.model(x)
         x = self.unembedding(x)
         return x
