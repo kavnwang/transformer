@@ -4,7 +4,7 @@ import torch.nn as nn
 from layers.positional_embedding import PositionalEmbedding
 from layers.swiglu import SwiGLU
 from layers.attention import Attention
-from layers.layernorm import LayerNorm
+from layers.rmsnorm import RMSNorm
 
 
 class Transformer(nn.Module):
@@ -22,7 +22,7 @@ class Transformer(nn.Module):
 
         super().__init__()
         self.num_layers = num_layers
-        self.RMSNorm = LayerNorm(eps)
+        self.RMSNorm = RMSNorm(eps)
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
         self.positional_embedding = PositionalEmbedding(hidden_dim, max_length)
         self.unembedding = nn.Linear(hidden_dim, vocab_size, bias=False)

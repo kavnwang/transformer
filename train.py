@@ -45,7 +45,6 @@ else:
         streaming=job_config["streaming"],
     )
 
-
 def tokenize(batch):
     return tokenizer(
         batch["text"], max_length=job_config["sequence_length"], truncation=True
