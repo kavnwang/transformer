@@ -35,7 +35,7 @@ class Attention(nn.Module):
         x2 = repeat(x[...,1::2], "b s n d -> b s n (2 d)")
         d = x.shape[-1]
         theta = repeat(self.rope_theta ** (-2 * torch.arange(d // 2).to(x.device) / d)[None, None, None, :],"b s n d -> b s n (2 d)")
-        theta = theta * torch.arange(x.shape[1])[None,:,None,None]
+        theta = theta * torch.arange(x.shape[1]).to(x.device)[None,:,None,None]
         cos = torch.cos(theta)
         sin = torch.sin(theta)
         return torch.where(
@@ -62,7 +62,7 @@ class Attention(nn.Module):
         q = self.apply_rope(q)
         k = self.apply_rope(k)
         
-        attention_scores = torch.einsum("bshd,bthd->bhst", q, k) / math.sqrt(self.head_dim) #b h s t
+        attention_scores = torch.einsum("bshd,bthd->bhst", q, k) / math.sqrt(self.key_dim // self.num_heads) #b h s t
         S = residual.size(1)
         attention_mask = torch.tril(
             torch.ones(S, S, dtype=torch.bool, device=x.device)
