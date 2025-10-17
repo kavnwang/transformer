@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import wandb
 from transformers import (
     AutoTokenizer,
     DataCollatorForLanguageModeling,
@@ -25,6 +26,17 @@ device = (
     if torch.backends.mps.is_available()
     else torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 )
+
+wandb.init(
+    project="transformer-training",
+    entity="my-awesome-team-name",
+    config={
+        **model_config,
+        **job_config,
+        "device": str(device)
+    }
+)
+
 print(f"Using device: {device}")
 tokenizer = AutoTokenizer.from_pretrained(
     "fla-hub/gla-1.3B-100B", trust_remote_code=True
@@ -109,6 +121,11 @@ def train_loop(dataloader, model, loss_fn, optimizer):
             writer.write(
                 {"step": batch, "loss": loss.item(), "lr": scheduler.get_last_lr()[0]}
             )
+            wandb.log({
+                "loss": loss.item(),
+                "learning_rate": scheduler.get_last_lr()[0],
+                "step": batch
+            })
             if (batch + 1) % job_config["save_interval"] == 0:
                 save_checkpoint(
                     model,
@@ -121,5 +138,5 @@ def train_loop(dataloader, model, loss_fn, optimizer):
                 sample_text = generate(model, "", device)
                 bar.write(f"Sample text at step {batch+1}: {sample_text}")
 
-
 train_loop(train_dataloader, model, loss_fn, optimizer)
+wandb.finish()
