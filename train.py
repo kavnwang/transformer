@@ -28,8 +28,8 @@ device = (
 )
 
 wandb.init(
-    project="transformer-training",
-    entity="my-awesome-team-name",
+    project="deepseek",
+    entity="kavn",
     config={
         **model_config,
         **job_config,
