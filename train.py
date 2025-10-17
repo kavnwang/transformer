@@ -11,6 +11,7 @@ import wandb
 from transformers import (
     AutoTokenizer,
     DataCollatorForLanguageModeling,
+    get_linear_schedule_with_warmup
 )
 
 from moe_transformer import Transformer
@@ -77,12 +78,11 @@ loss_fn = nn.CrossEntropyLoss(
 )
 optimizer = torch.optim.Adam(model.parameters(), betas=(0.9, 0.95), lr=job_config["lr"])
 
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+scheduler = get_linear_schedule_with_warmup(
     optimizer,
-    T_max=5000,
-    eta_min=job_config["lr"] * 0.1,
+    num_warmup_steps=job_config["warmup_steps"],
+    num_training_steps=job_config["total_training_steps"]-job_config["warmup_steps"],
 )
-
 
 def train_loop(dataloader, model, loss_fn, optimizer):
     '''
@@ -92,7 +92,7 @@ def train_loop(dataloader, model, loss_fn, optimizer):
         return
     '''
     os.makedirs(job_config["model_save_path"], exist_ok=True)
-
+    wandb.watch(model, log="gradients", log_freq=10)
     model.train()
 
     with StatsWriter(

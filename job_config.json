@@ -1,5 +1,6 @@
 {
     "total_training_steps": 20000,
+    "warmup_steps": 500,
     "batch_size": 4,
     "sequence_length": 2048,
     "lr": 3e-4,

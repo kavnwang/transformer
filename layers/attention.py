@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from layers.rmsnorm import RMSNorm
 from einops import rearrange, repeat
+import math
 
 class Attention(nn.Module):
     def __init__(
@@ -20,18 +21,11 @@ class Attention(nn.Module):
         self.eps = eps
         self.rms_norm = RMSNorm(hidden_dim, eps=1e-5)
         self.rope_theta = rope_theta
-        self.q_proj = nn.Parameter(
-            nn.init.kaiming_uniform_(torch.empty(hidden_dim, key_dim))
-        )
-        self.k_proj = nn.Parameter(
-            nn.init.kaiming_uniform_(torch.empty(hidden_dim, key_dim))
-        )
-        self.v_proj = nn.Parameter(
-            nn.init.kaiming_uniform_(torch.empty(hidden_dim, key_dim))
-        )
-        self.o_proj = nn.Parameter(
-            nn.init.kaiming_uniform_(torch.empty(key_dim,hidden_dim))
-        )
+        self.q_proj = nn.Linear(hidden_dim,key_dim)
+        self.k_proj = nn.Linear(hidden_dim,key_dim)
+        self.v_proj = nn.Linear(hidden_dim,key_dim)
+        self.o_proj = nn.Linear(key_dim,hidden_dim)
+        self.qk_norm = qk_norm
         if qk_norm:
             self.q_norm = RMSNorm(key_dim, eps)
             self.k_norm = RMSNorm(key_dim, eps)
@@ -40,8 +34,10 @@ class Attention(nn.Module):
         x1 = repeat(x[...,0::2], "b s n d -> b s n (2 d)")
         x2 = repeat(x[...,1::2], "b s n d -> b s n (2 d)")
         d = x.shape[-1]
-        cos = repeat(torch.cos(self.rope_theta ** (-2 * torch.arange(d // 2).to(x.device) / d))[None, None, None, :],"b s n d -> b s n (2 d)")
-        sin = repeat(torch.sin(self.rope_theta ** (-2 * torch.arange(d // 2).to(x.device) / d))[None, None, None, :],"b s n d -> b s n (2 d)")
+        theta = repeat(self.rope_theta ** (-2 * torch.arange(d // 2).to(x.device) / d)[None, None, None, :],"b s n d -> b s n (2 d)")
+        theta = theta * torch.arange(x.shape[1])[None,:,None,None]
+        cos = torch.cos(theta)
+        sin = torch.sin(theta)
         return torch.where(
             (torch.arange(d) % 2 == 0).to(x.device) [None, None, None, :], 
             cos * x1 - sin * x2,
@@ -55,10 +51,9 @@ class Attention(nn.Module):
         k = x_norm @ self.k_proj
         v = x_norm @ self.v_proj
 
-        if self.q_norm:
-            self.q_norm(q)
-        if self.k_norm:
-            self.k_norm(k)
+        if self.qk_norm:
+            q = self.q_norm(q)
+            k = self.k_norm(k)
 
         q = rearrange(q, "... (h d) -> ... h d",h=self.num_heads) # b s h d
         k = rearrange(k, "... (h d) -> ... h d",h=self.num_heads) # b t h d
@@ -67,7 +62,7 @@ class Attention(nn.Module):
         q = self.apply_rope(q)
         k = self.apply_rope(k)
         
-        attention_scores = torch.einsum("bshd,bthd->bhst", q, k) * (1.0 / torch.sqrt(torch.tensor(self.key_dim))) #b h s t
+        attention_scores = torch.einsum("bshd,bthd->bhst", q, k) / math.sqrt(self.head_dim) #b h s t
         S = residual.size(1)
         attention_mask = torch.tril(
             torch.ones(S, S, dtype=torch.bool, device=x.device)
