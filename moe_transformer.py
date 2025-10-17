@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from typing import List
 
 from layers.swiglu import SwiGLU
 from layers.attention import Attention
@@ -18,6 +19,7 @@ class Transformer(nn.Module):
         intermediate_dim: int,
         num_selected: int,
         num_experts: int,
+        moe_layers: List[int],
         eps: float = 1e-6,
     ):
 
@@ -34,7 +36,7 @@ class Transformer(nn.Module):
         for i in range(num_layers):
             layers.append(Attention(hidden_dim, key_dim, num_heads, eps))
             layers.append(SwiGLU(hidden_dim, intermediate_dim))
-            if i % 3 == 0:
+            if i in moe_layers:
                 layers.append(
                     MoE(num_experts, hidden_dim, intermediate_dim, num_selected)
                 )
