@@ -47,9 +47,9 @@ class Attention(nn.Module):
     def forward(self,x: torch.Tensor) -> torch.Tensor: 
         residual = x  # b s h
         x_norm = self.rms_norm(x)
-        q = x_norm @ self.q_proj
-        k = x_norm @ self.k_proj
-        v = x_norm @ self.v_proj
+        q = self.q_proj(x_norm)
+        k = self.k_proj(x_norm)
+        v = self.v_proj(x_norm)
 
         if self.qk_norm:
             q = self.q_norm(q)
@@ -70,5 +70,5 @@ class Attention(nn.Module):
         attention_scores = attention_scores.masked_fill(~attention_mask, float("-inf"))
         softmax_scores = torch.softmax(attention_scores, dim=-1)
         output = torch.einsum("bhst,bthd->bshd", softmax_scores, v) #(b h s t) (b t h d) -> (b s h d)
-        output = rearrange(output, "... h d -> ... (h d)",h=self.num_heads) @ self.o_proj
+        output = self.o_proj(rearrange(output, "... h d -> ... (h d)",h=self.num_heads))
         return output + residual
