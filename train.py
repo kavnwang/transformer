@@ -74,14 +74,15 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
 
 def train_loop(dataloader, model, loss_fn, optimizer):
     if os.path.exists(job_config["model_save_path"]):
-        # Clean up for testing purposes
-        os.system(f"rm -rf {job_config['model_save_path']}")
+        # Raise error if the directory exists
+        print("Error: Model save path already exists.")
+        return
     os.makedirs(job_config["model_save_path"], exist_ok=True)
 
     model.train()
 
     with StatsWriter(
-        os.path.join(job_config["model_save_path"], "stats.csv"), ["step", "loss"]
+        os.path.join(job_config["model_save_path"], "stats.csv"), ["step", "loss", "lr"]
     ) as writer:
         for batch, sample in (
             bar := tqdm(
@@ -103,7 +104,9 @@ def train_loop(dataloader, model, loss_fn, optimizer):
             scheduler.step()
             optimizer.zero_grad()
             bar.set_postfix_str(f"loss: {loss.item():>7f}")
-            writer.write({"step": batch, "loss": loss.item()})
+            writer.write(
+                {"step": batch, "loss": loss.item(), "lr": scheduler.get_last_lr()[0]}
+            )
             if (batch + 1) % job_config["save_interval"] == 0:
                 save_checkpoint(
                     model,
