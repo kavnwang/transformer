@@ -57,10 +57,12 @@ class MoE(nn.Module):
         # b s h
         x_norm = self.layer_norm(x)
         scores = self.router(x_norm)  # b s e
+        b_idx = torch.arange(x.shape[0], device=scores.device)[:, None, None]
+        s_idx = torch.arange(x.shape[1], device=scores.device)[None, :, None]
         _, indices = torch.topk(scores, k=self.num_selected, dim=-1)  # b s n
         probs = torch.ones_like(scores) * float("-inf")
-        probs[:, torch.arange(probs.shape[1]).unsqueeze(1), indices] = scores[
-            :, torch.arange(probs.shape[1]).unsqueeze(1), indices
+        probs[b_idx, s_idx, indices] = scores[
+            b_idx, s_idx, indices
         ]
         probs = torch.softmax(probs, dim=-1)  # b s e
         x_copy = x_norm.unsqueeze(-2).tile((1, 1, self.num_experts, 1))
@@ -68,3 +70,4 @@ class MoE(nn.Module):
             "b s e, b s e h -> b s e h", probs, self.mlp(x_copy)
         )  # b s e h
         return x + einops.reduce(output, "b s e h -> b s h", "sum")
+
