@@ -3,6 +3,7 @@ einops
 torch
 torchvision
 tqdm
-transformers
+transformers>=4.46
 wandb
 hf_transfer
+numpy>=1.22, <2.0

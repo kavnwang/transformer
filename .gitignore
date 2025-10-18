@@ -4,6 +4,7 @@ fineweb-edu
 fineweb-edu-toy
 models/
 .venv/
+venv/
 __pycache__
 .ipynb_checkpoints
 wandb/
