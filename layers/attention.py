@@ -22,7 +22,7 @@ class Attention(nn.Module):
         self.key_dim = key_dim
         self.num_heads = num_heads
         self.eps = eps
-        self.rms_norm = RMSNorm(hidden_dim, eps=1e-5)
+        self.rms_norm = RMSNorm(hidden_dim, eps)
         self.rope_theta = rope_theta
         self.q_proj = nn.Linear(hidden_dim,key_dim)
         self.k_proj = nn.Linear(hidden_dim,key_dim)
@@ -48,13 +48,16 @@ class Attention(nn.Module):
             sin * x1 + cos * x2
         )
 
-    def forward(self,x: torch.Tensor, key_cache: Optional[Tensor] = None, value_cache: Optional[Tensor] = None,) -> torch.Tensor: 
+    def forward(self,x: torch.Tensor, key_cache: Optional[Tensor] = None, value_cache: Optional[Tensor] = None,) -> tuple[torch.Tensor, Optional[tuple[Tensor, Tensor]]]: 
         residual = x  # b s h
         x_norm = self.rms_norm(x)
-        q = self.q_proj(x_norm)
+        if self.use_cache:
+            q = self.q_proj(x_norm[:,-1:,:])
+        else:
+            q = self.q_proj(x_norm)
         if self.use_cache and key_cache is not None:
             k = key_cache
-            k_new = self.k_proj(x[:,-1:,:])
+            k_new = self.k_proj(x_norm[:,-1:,:])
             k = torch.cat((k,k_new),dim=1)
         else:
             k = self.k_proj(x_norm)
@@ -64,7 +67,7 @@ class Attention(nn.Module):
             key_cache = k
         if self.use_cache and value_cache is not None:
             v = value_cache
-            v_new = self.v_proj(x[:,-1:,:])
+            v_new = self.v_proj(x_norm[:,-1:,:])
             v = torch.cat((v,v_new),dim=1)
         else:
             v = self.v_proj(x_norm)
@@ -81,9 +84,10 @@ class Attention(nn.Module):
         k = self.apply_rope(k)
         
         attention_scores = torch.einsum("bshd,bthd->bhst", q, k) / math.sqrt(self.key_dim // self.num_heads) #b h s t
-        S = residual.size(1)
+        S = q.size(1)
+        T = x.size(1)
         attention_mask = torch.tril(
-            torch.ones(S, S, dtype=torch.bool, device=x.device)
+            torch.ones(S, T, dtype=torch.bool, device=x.device)
         ).unsqueeze(0) # 1 s t
         attention_scores = attention_scores.masked_fill(~attention_mask, float("-inf"))
         softmax_scores = torch.softmax(attention_scores, dim=-1)

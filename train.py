@@ -136,7 +136,7 @@ def train_loop(dataloader, model, loss_fn, optimizer):
                     checkpoint_dir=job_config["model_save_path"],
                 )
                 bar.write(f"Model checkpoint saved at step {batch+1}")
-                sample_text = generate(model, model_config, "", device, True)
+                sample_text = generate(model, tokenizer, model_config, "", device, True)
                 bar.write(f"Sample text at step {batch+1}: {sample_text}")
 
 train_loop(train_dataloader, model, loss_fn, optimizer)

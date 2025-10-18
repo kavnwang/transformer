@@ -9,5 +9,5 @@ class PositionalEmbedding(nn.Module):
         self.max_length = max_length
         self.embedding = nn.Embedding(max_length, hidden_dim)
 
-    def forward(self, x: int) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.embedding(x)

@@ -37,7 +37,7 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList()
         self.use_cache = use_cache
         for i in range(num_layers):
-            self.layers.append(Attention(hidden_dim, key_dim, num_heads, eps, use_cache=use_cache))
+            self.layers.append(Attention(hidden_dim, key_dim, num_heads, use_cache=use_cache))
             self.layers.append(SwiGLU(hidden_dim, intermediate_dim))
             if i in moe_layers:
                 self.layers.append(

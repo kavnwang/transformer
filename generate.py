@@ -10,9 +10,12 @@ from utils.generator import generate
 
 def main(model_config, device, checkpoint, max_length, temperature=1.0, use_cache=True):
     model = Transformer(**model_config, use_cache=use_cache).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(
+        "fla-hub/gla-1.3B-100B", trust_remote_code=True
+    )
     load_checkpoint(model, None, None, checkpoint, device)
     prompt = input("Enter your prompt: ")
-    output = generate(model, model_config, prompt, device, use_cache, max_length, temperature)
+    output = generate(model, tokenizer, model_config, prompt, device, use_cache, max_length, temperature)
     print("Generated text:")
     print(output)
 

@@ -2,12 +2,7 @@ import torch
 from transformers import AutoTokenizer
 
 
-
-tokenizer = AutoTokenizer.from_pretrained(
-    "fla-hub/gla-1.3B-100B", trust_remote_code=True
-)
-
-def generate(model, model_config, prompt, device, use_cache, max_length: int = 100, temperature: float = 1.0) -> str:
+def generate(model, tokenizer, model_config, prompt, device, use_cache, max_length: int = 100, temperature: float = 1.0) -> str:
     inputs = tokenizer(prompt, return_tensors="pt")["input_ids"].to(device)
     if use_cache:
         key_cache = [None for _ in range(model_config["num_layers"])]
@@ -15,7 +10,7 @@ def generate(model, model_config, prompt, device, use_cache, max_length: int = 1
     with torch.no_grad():
         for _ in range(max_length):
             if use_cache:
-                outputs, (key_cache, value_cache) = model(inputs,key_cache,value_cache)
+                outputs, (key_cache, value_cache) = model(inputs[-1].unsqueeze(0),key_cache,value_cache)
             else: 
                 outputs, _ = model(inputs)
             next_token_logits = outputs[:, -1, :]
