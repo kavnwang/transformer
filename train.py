@@ -20,6 +20,7 @@ from utils.checkpointing import save_checkpoint, load_checkpoint
 from utils.writers import StatsWriter
 
 model_config = json.load(open("model_config.json"))
+model_config["use_cache"] = False
 job_config = json.load(open("job_config.json"))
 
 device = (
@@ -110,7 +111,7 @@ def train_loop(dataloader, model, loss_fn, optimizer):
             y = sample["input_ids"][:, 1:]
             x = x.to(device)
             y = y.to(device)
-            pred = model(x)
+            pred, _ = model(x)
             loss = loss_fn(pred.transpose(1, 2), y)
             loss.backward()
             # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -135,7 +136,7 @@ def train_loop(dataloader, model, loss_fn, optimizer):
                     checkpoint_dir=job_config["model_save_path"],
                 )
                 bar.write(f"Model checkpoint saved at step {batch+1}")
-                sample_text = generate(model, "", device)
+                sample_text = generate(model, model_config, "", device, True)
                 bar.write(f"Sample text at step {batch+1}: {sample_text}")
 
 train_loop(train_dataloader, model, loss_fn, optimizer)

@@ -8,12 +8,11 @@ from utils.checkpointing import load_checkpoint
 from utils.generator import generate
 
 
-def main(model_config, device, checkpoint, max_length, temperature=1.0):
-    model = Transformer(**model_config).to(device)
+def main(model_config, device, checkpoint, max_length, temperature=1.0, use_cache=True):
+    model = Transformer(**model_config, use_cache=use_cache).to(device)
     load_checkpoint(model, None, None, checkpoint, device)
-
     prompt = input("Enter your prompt: ")
-    output = generate(model, prompt, device, max_length, temperature)
+    output = generate(model, model_config, prompt, device, use_cache, max_length, temperature)
     print("Generated text:")
     print(output)
 
@@ -29,16 +28,17 @@ if __name__ == "__main__":
         help="Path to the model configuration file (JSON format).",
     )
     parser.add_argument(
-        "--checkpoint",
-        type=str,
-        default="models/test/checkpoint_step_14500.pth",
-        help="Path to the model checkpoint file.",
-    )
-    parser.add_argument(
         "--device",
         type=str,
         default="cpu",
         help="Device to run the model on (e.g., 'cpu' or 'cuda').",
+    )
+
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default="models/test3/checkpoint_step_50.pth",
+        help="Path to the model checkpoint file.",
     )
     parser.add_argument(
         "--max_length",

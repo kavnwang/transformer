@@ -1,6 +1,7 @@
 import torch
+from torch import Tensor
 import torch.nn as nn
-from typing import List
+from typing import List, Optional
 
 from layers.swiglu import SwiGLU
 from layers.attention import Attention
@@ -20,6 +21,7 @@ class Transformer(nn.Module):
         num_selected: int,
         num_experts: int,
         moe_layers: List[int],
+        use_cache: bool,
         eps: float = 1e-6,
     ):
 
@@ -32,18 +34,33 @@ class Transformer(nn.Module):
         self.unembedding = nn.Linear(hidden_dim, vocab_size, bias=False)
         self.num_selected = num_selected
         self.num_experts = num_experts
-        layers = []
+        self.layers = nn.ModuleList()
+        self.use_cache = use_cache
         for i in range(num_layers):
-            layers.append(Attention(hidden_dim, key_dim, num_heads, eps))
-            layers.append(SwiGLU(hidden_dim, intermediate_dim))
+            self.layers.append(Attention(hidden_dim, key_dim, num_heads, eps, use_cache=use_cache))
+            self.layers.append(SwiGLU(hidden_dim, intermediate_dim))
             if i in moe_layers:
-                layers.append(
+                self.layers.append(
                     MoE(num_experts, hidden_dim, intermediate_dim, num_selected)
                 )
-        self.model = nn.Sequential(*layers)
 
-    def forward(self, x: int) -> torch.Tensor:
+    def forward(self, x: int, key_cache: Optional[Tensor] = None, value_cache: Optional[Tensor] = None,) -> torch.Tensor:
+        #cache dim: l b s k
+        if self.use_cache:
+            output_key_cache = []
+            output_value_cache = []
         x = self.embedding(x)
-        x = self.model(x)
+        layer_num = -1
+        for layer in self.layers:
+            if isinstance(layer, Attention):
+                if self.use_cache:
+                    layer_num += 1
+                    x, (new_key_cache, new_value_cache) = layer(x,key_cache[layer_num],value_cache[layer_num])
+                    output_key_cache.append(new_key_cache)
+                    output_value_cache.append(new_value_cache)
+                else:
+                    x, _ = layer(x)
+            else:
+                x = layer(x)
         x = self.unembedding(x)
-        return x
+        return x, (output_key_cache, output_value_cache) if self.use_cache else None

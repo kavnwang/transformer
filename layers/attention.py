@@ -1,5 +1,7 @@
 import torch
+from torch import Tensor
 import torch.nn as nn
+from typing import Optional
 from layers.rmsnorm import RMSNorm
 from einops import rearrange, repeat
 import math
@@ -12,7 +14,8 @@ class Attention(nn.Module):
         num_heads: int,
         qk_norm: bool = False,
         rope_theta: float = 10000.0,
-        eps: float=1e-5
+        use_cache: bool = False,
+        eps: float=1e-5,
     ): 
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -26,6 +29,7 @@ class Attention(nn.Module):
         self.v_proj = nn.Linear(hidden_dim,key_dim)
         self.o_proj = nn.Linear(key_dim,hidden_dim)
         self.qk_norm = qk_norm
+        self.use_cache = use_cache
         if qk_norm:
             self.q_norm = RMSNorm(key_dim, eps)
             self.k_norm = RMSNorm(key_dim, eps)
@@ -44,16 +48,30 @@ class Attention(nn.Module):
             sin * x1 + cos * x2
         )
 
-    def forward(self,x: torch.Tensor) -> torch.Tensor: 
+    def forward(self,x: torch.Tensor, key_cache: Optional[Tensor] = None, value_cache: Optional[Tensor] = None,) -> torch.Tensor: 
         residual = x  # b s h
         x_norm = self.rms_norm(x)
         q = self.q_proj(x_norm)
-        k = self.k_proj(x_norm)
-        v = self.v_proj(x_norm)
-
+        if self.use_cache and key_cache is not None:
+            k = key_cache
+            k_new = self.k_proj(x[:,-1:,:])
+            k = torch.cat((k,k_new),dim=1)
+        else:
+            k = self.k_proj(x_norm)
+            if self.qk_norm:
+                k = self.k_norm(k)
+        if self.use_cache:
+            key_cache = k
+        if self.use_cache and value_cache is not None:
+            v = value_cache
+            v_new = self.v_proj(x[:,-1:,:])
+            v = torch.cat((v,v_new),dim=1)
+        else:
+            v = self.v_proj(x_norm)
+        if self.use_cache:
+            value_cache = v
         if self.qk_norm:
             q = self.q_norm(q)
-            k = self.k_norm(k)
 
         q = rearrange(q, "... (h d) -> ... h d",h=self.num_heads) # b s h d
         k = rearrange(k, "... (h d) -> ... h d",h=self.num_heads) # b t h d
@@ -71,4 +89,5 @@ class Attention(nn.Module):
         softmax_scores = torch.softmax(attention_scores, dim=-1)
         output = torch.einsum("bhst,bthd->bshd", softmax_scores, v) #(b h s t) (b t h d) -> (b s h d)
         output = self.o_proj(rearrange(output, "... h d -> ... (h d)",h=self.num_heads))
-        return output + residual
+        hidden_states = output + residual
+        return hidden_states, (key_cache, value_cache) if self.use_cache is True else None
